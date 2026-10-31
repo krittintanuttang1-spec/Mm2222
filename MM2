@@ -1,0 +1,210 @@
+-- ==========================================
+-- EXZ HUB (Casserus UI Library - Fully Fixed)
+-- ==========================================
+
+local UILibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/vaxtalastus-web/Casserus-UI-Library-RBX/refs/heads/main/source.lua"))()
+
+local MyWindow = UILibrary:CreateWindow("EXZ HUB | MM2")
+
+local mainTab = MyWindow:CreateTab("Main")
+local settingsTab = MyWindow:CreateTab("Settings")
+local visualTab = MyWindow:CreateTab("Visuals")
+local creditsTab = MyWindow:CreateTab("Credits")
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+-- ฟังก์ชันเช็คบทบาท MM2
+local function getRole(p)
+    if not p or not p.Character then return "Innocent" end
+    local backpack = p:FindFirstChild("Backpack")
+    local char = p.Character
+    local hasKnife = char:FindFirstChild("Knife") or (backpack and backpack:FindFirstChild("Knife"))
+    local hasGun = char:FindFirstChild("Gun") or char:FindFirstChild("Revolver") or (backpack and (backpack:FindFirstChild("Gun") or backpack:FindFirstChild("Revolver")))
+    if hasKnife then return "Murderer"
+    elseif hasGun then return "Sheriff"
+    else return "Innocent" end
+end
+
+-- ==========================================
+-- Main Tab (ฟังก์ชันหลักและความเร็ววิ่ง)
+-- ==========================================
+
+-- 1. ล่องหน
+mainTab:CreateToggle("ล่องหน (Invisibility)", function(state)
+    pcall(function()
+        local char = LocalPlayer.Character
+        if char then
+            for _, v in pairs(char:GetDescendants()) do
+                if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
+                    v.Transparency = state and 1 or 0
+                elseif v:IsA("Decal") then
+                    v.Transparency = state and 1 or 0
+                end
+            end
+        end
+    end)
+end)
+
+-- 2. ปรับความเร็ววิ่ง (WalkSpeed Slider) อยู่หน้า Main ให้ปรับง่ายขึ้น
+local speedVal = 16
+mainTab:CreateSlider("ความเร็วเดิน (WalkSpeed)", 16, 150, 16, function(value)
+    speedVal = value
+end)
+
+local walkspeedEnabled = false
+mainTab:CreateToggle("เปิด/ปิด วิ่งไว", function(state)
+    walkspeedEnabled = state
+end)
+
+RunService.RenderStepped:Connect(function()
+    pcall(function()
+        if walkspeedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = speedVal
+        elseif not walkspeedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = 16
+        end
+    end)
+end)
+
+-- 3. เดินทะลุกำแพง (Noclip)
+local noclip = false
+mainTab:CreateToggle("เดินทะลุกำแพง (Noclip)", function(state)
+    noclip = state
+end)
+RunService.Stepped:Connect(function()
+    pcall(function()
+        if noclip and LocalPlayer.Character then
+            for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
+                if v:IsA("BasePart") then v.CanCollide = false end
+            end
+        end
+    end)
+end)
+
+-- 4. Aimbot ล็อกหัว
+local aimbot = false
+mainTab:CreateToggle("Aimbot ล็อกหัวเป้าหมาย", function(state)
+    aimbot = state
+end)
+RunService.RenderStepped:Connect(function()
+    pcall(function()
+        if aimbot then
+            local target, shortest = nil, math.huge
+            local cam = workspace.CurrentCamera
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("Head") then
+                    local hum = p.Character:FindFirstChild("Humanoid")
+                    if hum and hum.Health > 0 then
+                        local pos, onScreen = cam:WorldToViewportPoint(p.Character.Head.Position)
+                        if onScreen then
+                            local dist = (Vector2.new(pos.X, pos.Y) - Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)).Magnitude
+                            if dist < shortest then
+                                shortest = dist
+                                target = p
+                            end
+                        end
+                    end
+                end
+            end
+            if target and target.Character:FindFirstChild("Head") then
+                cam.CFrame = CFrame.new(cam.CFrame.Position, target.Character.Head.Position)
+            end
+        end
+    end)
+end)
+
+-- 5 & 6. ดีดฆาตกรและนายอำเภอ
+local function teleToVoid(roleName)
+    pcall(function()
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                if getRole(p) == roleName then
+                    p.Character.HumanoidRootPart.CFrame = CFrame.new(p.Character.HumanoidRootPart.Position.X, 99999, p.Character.HumanoidRootPart.Position.Z)
+                end
+            end
+        end
+    end)
+end
+
+mainTab:CreateButton("ดีดฆาตกรออกแมพ", function() teleToVoid("Murderer") end)
+mainTab:CreateButton("ดีดนายอำเภอออกแมพ", function() teleToVoid("Sheriff") end)
+
+-- 7. ออโต้ฆ่าคน
+local autoKill = false
+mainTab:CreateToggle("ออโต้ฆ่าคน (เมื่อเป็นฆาตกร)", function(state)
+    autoKill = state
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.3)
+        pcall(function()
+            if autoKill and getRole(LocalPlayer) == "Murderer" then
+                local myChar = LocalPlayer.Character
+                if myChar and myChar:FindFirstChild("HumanoidRootPart") then
+                    for _, p in pairs(Players:GetPlayers()) do
+                        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                            local hum = p.Character:FindFirstChild("Humanoid")
+                            if hum and hum.Health > 0 and getRole(p) ~= "Murderer" then
+                                myChar.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- ==========================================
+-- Visuals Tab (ESP แยกสี)
+-- ==========================================
+local espOn = false
+visualTab:CreateToggle("ESP สีบทบาท (เขียว/แดง/ฟ้า)", function(state)
+    espOn = state
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Character and p.Character:FindFirstChild("EXZ_ESP_BOX") then
+            p.Character.EXZ_ESP_BOX:Destroy()
+        end
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    pcall(function()
+        if espOn then
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character then
+                    local char = p.Character
+                    local hl = char:FindFirstChild("EXZ_ESP_BOX")
+                    if not hl then
+                        hl = Instance.new("Highlight")
+                        hl.Name = "EXZ_ESP_BOX"
+                        hl.Parent = char
+                        hl.Adornee = char
+                        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    end
+                    
+                    local role = getRole(p)
+                    if role == "Murderer" then
+                        hl.FillColor = Color3.fromRGB(255, 50, 50)
+                    elseif role == "Sheriff" then
+                        hl.FillColor = Color3.fromRGB(0, 150, 255)
+                    else
+                        hl.FillColor = Color3.fromRGB(50, 255, 50)
+                    end
+                end
+            end
+        end
+    end)
+end)
+
+-- ==========================================
+-- Credits Tab
+-- ==========================================
+creditsTab:CreateButton("EXZ HUB - Made by You!", function()
+    print("Thanks for using EXZ HUB!")
+end)
+
+print("EXZ HUB Fully Fixed & Loaded!")
